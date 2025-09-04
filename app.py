@@ -231,7 +231,7 @@ This is a final quality inspection before shipment to retail customers. Any defe
 Provide your professional assessment in this EXACT JSON format:
 
 ```json
-{
+{{
     "angle": "{angle_name}",
     "critical_defects": ["Be specific: location + defect type + severity"],
     "major_defects": ["Include exact location and detailed description"], 
@@ -239,7 +239,7 @@ Provide your professional assessment in this EXACT JSON format:
     "overall_condition": "Good/Fair/Poor",
     "confidence": "High/Medium/Low",
     "inspection_notes": "Professional summary with any concerns about image quality or recommendations"
-}
+}}
 ```
 
 ## PROFESSIONAL STANDARDS:
@@ -253,8 +253,7 @@ Provide your professional assessment in this EXACT JSON format:
 ## INSPECTION DIRECTIVE:
 Conduct a thorough, professional quality control inspection of this {angle_name} view. Apply your expertise to identify all visible defects with precision and professional judgment. Your assessment will determine if this product meets manufacturing quality standards for retail distribution.
 
-Focus on this specific angle and provide detailed, actionable feedback that would help improve manufacturing processes. Pay special attention to the comprehensive defect categories listed above and classify each defect according to the size-based severity system.
-    """
+Focus on this specific angle and provide detailed, actionable feedback that would help improve manufacturing processes. Pay special attention to the comprehensive defect categories listed above and classify each defect according to the size-based severity system."""
     
     try:
         response = client.chat.completions.create(
@@ -1263,3 +1262,4 @@ st.markdown("""
     <em>AI Footwear Quality Control Inspector - Transforming Manufacturing QC with Computer Vision</em>
 </div>
 """, unsafe_allow_html=True)
+
