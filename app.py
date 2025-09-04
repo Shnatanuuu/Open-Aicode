@@ -278,7 +278,7 @@ Focus on this specific angle provide detailed, actionable feedback that would he
                 "angle": angle_name,
                 "critical_defects": [],
                 "major_defects": [],
-                "minor_defects": ["Analysis parsing error - manual review needed"],
+                "minor_defects": [],
                 "overall_condition": "Fair",
                 "confidence": "Low",
                 "inspection_notes": "API response parsing failed - raw response logged"
@@ -1250,3 +1250,4 @@ st.markdown("""
     <em>AI Footwear Quality Control Inspector - Transforming Manufacturing QC with Computer Vision</em>
 </div>
 """, unsafe_allow_html=True)
+
