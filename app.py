@@ -5,6 +5,7 @@ from PIL import Image
 import io
 from datetime import datetime
 import json
+import traceback
 
 # Set up the page
 st.set_page_config(
@@ -19,245 +20,72 @@ st.markdown("*Powered by OpenAI GPT-4 Vision API*")
 # Function to encode image
 def encode_image(image):
     """Convert PIL image to base64 string for OpenAI API"""
-    buffer = io.BytesIO()
-    image.save(buffer, format="JPEG")
-    return base64.b64encode(buffer.getvalue()).decode()
+    try:
+        buffer = io.BytesIO()
+        # Convert to RGB if necessary
+        if image.mode in ('RGBA', 'LA'):
+            rgb_image = Image.new('RGB', image.size, (255, 255, 255))
+            rgb_image.paste(image, mask=image.split()[-1] if image.mode == 'RGBA' else None)
+            image = rgb_image
+        elif image.mode != 'RGB':
+            image = image.convert('RGB')
+            
+        image.save(buffer, format="JPEG", quality=85)
+        return base64.b64encode(buffer.getvalue()).decode()
+    except Exception as e:
+        st.error(f"Error encoding image: {str(e)}")
+        return None
 
 # Professional QC Analysis function
 def analyze_shoe_image(client, image, angle_name, style_number="", color="", po_number=""):
     """
     Analyze shoe image using OpenAI GPT-4 Vision API with professional QC expertise
     """
-    base64_image = encode_image(image)
-    
-    # COMPREHENSIVE PROFESSIONAL QC INSPECTOR PROMPT
-    prompt = f"""
-# PROFESSIONAL FOOTWEAR QUALITY CONTROL INSPECTION - EXPERT ANALYSIS
+    try:
+        base64_image = encode_image(image)
+        if not base64_image:
+            return None
+        
+        # Simplified but comprehensive prompt
+        prompt = f"""
+You are a professional footwear quality control inspector analyzing a {angle_name} view of shoe style {style_number}.
 
-## INSPECTOR PROFILE:
-You are a highly experienced footwear quality control inspector with 15+ years in athletic and fashion footwear manufacturing. You have worked with major brands and understand international quality standards. You are known for your meticulous attention to detail and strict adherence to AQL standards.
+Inspect for these defect categories:
 
-## CURRENT INSPECTION ASSIGNMENT:
-- Order: PO#{po_number}
-- Product: {style_number} footwear 
-- Color: {color}
-- View Angle: {angle_name}
-- Quality Standard: AQL 2.5 (Manufacturing Grade A)
-- Inspection Type: Pre-shipment final inspection
-- Client Requirement: Zero tolerance for critical defects
+CRITICAL DEFECTS (Zero tolerance):
+- Sole separation/debonding
+- Major structural damage
+- Safety hazards
+- Wrong product
 
-## MANUFACTURING CONTEXT:
-This is a final quality inspection before shipment to retail customers. Any defect that reaches the end customer could result in returns, complaints, and brand reputation damage. You must inspect with the understanding that this product will be sold at retail and worn by consumers who expect high quality.
+MAJOR DEFECTS (Customer visible):
+- Visible glue overflow
+- Misalignment issues
+- Shape deformations
+- Color variations
+- Construction defects
+- Poor stitching
 
-## COMPREHENSIVE DEFECT CLASSIFICATION SYSTEM:
+MINOR DEFECTS (Cosmetic):
+- Small scuffs/marks
+- Minor thread ends
+- Slight texture variations
+- Very small imperfections
 
-### 🚨 CRITICAL DEFECTS (ZERO TOLERANCE - Immediate Rejection):
-
-**1. Structural Integrity Issues:**
-- Complete or partial **outsole debonding** or separation
-- Major **heel defects**: broken, warped, or causing instability/tilt
-- **Boot barrel deformation** (elastic band deformation) affecting structural integrity
-- **The inside exploded** (major lining failure)
-- **The upper is damaged** (tears, holes larger than 1mm)
-- Broken or cracked structural components
-- **Heel kick** (severe front and back kick deformation)
-
-**2. Safety Hazards:**
-- Sharp edges or protruding elements
-- **Rubber wire** creating safety risks
-- Loose hardware that could cause injury
-- Chemical odors or visible contamination
-- Unstable heel attachment causing tilt or instability
-
-**3. Wrong Product Issues:**
-- Completely wrong style, size, or color
-- Left/right shoe mismatch
-- Missing essential components (entire tongue, heel, etc.)
-
-### ⚠️ MAJOR DEFECTS (Require Rework - Customer Visible Issues):
-
-**1. Adhesive & Bonding Problems:**
-- **Overflowing glue** (visible excess adhesive)
-- **The outsole lacks glue** (poor bonding preparation)
-- **The outsole combination is not tight** (separation gaps >1mm)
-- **The middle skin is glued** improperly
-- **The skin is glued** with visible defects
-- Poor bonding between upper/midsole/outsole components
-
-**2. Alignment & Shape Defects:**
-- **The rear trim strip is skewed**
-- **Skewed lines** (edges, spacing misalignment)
-- **The toe of the shoe is crooked**
-- **Toe defects**: misaligned toe box or irregular cap length
-- **The length of the toe cap** inconsistency
-- **The back package is high and low** (uneven heel counter)
-- Components misaligned or twisted relative to shoe centerline
-- **Heel counter defects**: shape/height inconsistent or deformed
-
-**3. Material Deformation:**
-- **Mesothelial wrinkles** (significant upper creasing)
-- **Wrinkled upper** affecting appearance
-- **Inner wrinkles** (lining deformation)
-- **The waist is not smooth** (poor lasting)
-- **Indentation on the upper** (shape defects)
-- Midfoot/shank area irregularities affecting profile
-
-**4. Color and Appearance:**
-- **Chromatic aberration** (noticeable color differences)
-- Color variation between shoe parts (>2 shade difference)
-- Color bleeding or staining between materials
-- Uneven dyeing or color patches
-
-**5. Construction Defects:**
-- **Upper thread** defects (loose, broken, or improper stitching)
-- Poor toe lasting (wrinkles, bubbles, asymmetry)
-- Visible gaps between sole and upper (>1mm)
-- Misaligned or crooked stitching lines
-- Puckering or gathering in upper materials
-
-**6. Hardware and Components:**
-- Damaged, bent, or non-functional eyelets
-- Broken or damaged lace hooks/D-rings
-- Velcro not adhering properly
-- Buckle damage or malfunction
-
-**7. Lining and Interior:**
-- Lining tears, wrinkles, or separation
-- Sock liner/insole misprinting or damage
-- Tongue positioning issues (too far left/right)
-
-**8. Sole and Bottom:**
-- Outsole molding defects or incomplete patterns
-- Midsole compression or deformation
-- Heel cap damage or misalignment
-- Tread pattern inconsistencies
-
-### ℹ️ MINOR DEFECTS (Acceptable within AQL limits):
-
-**1. Surface & Cleanliness Issues:**
-- **Cleanliness** defects (surface dirt, dust - cleanable)
-- Minor scuff marks (<5mm)
-- Small adhesive residue spots
-- Temporary marking pen marks
-- **Transparency marks** (minor see-through effects)
-
-**2. Finishing Details:**
-- Thread ends not trimmed (<3mm length)
-- Minor stitching irregularities (straight lines)
-- Small material texture variations
-- Minor logo/branding imperfections
-- **Toe corners** with slight irregularities
-
-**3. Cosmetic Issues:**
-- Very small scratches (<2mm)
-- Minor sole texture variations
-- Slight asymmetry in non-structural elements
-- Minor trim imperfections
-
-## DEFECT SEVERITY ASSESSMENT GUIDELINES:
-
-**SEVERITY CLASSIFICATION BY SIZE:**
-- **Minor Defects**: Very small defects (barely noticeable, <2mm)
-- **Major Defects**: Small defects (clearly visible, 2-10mm)  
-- **Critical Defects**: Medium to big defects (>10mm or affecting functionality)
-
-## ANGLE-SPECIFIC INSPECTION FOCUS:
-
-**FRONT VIEW INSPECTION:**
-- Toe cap symmetry and **the length of the toe cap**
-- Lace eyelet alignment and spacing
-- **Skewed lines** assessment (edges, spacing)
-- **The toe of the shoe is crooked** evaluation
-- **Upper thread** quality and alignment
-- Color matching and **chromatic aberration**
-- **Transparency marks** visibility
-- **Indentation on the upper** detection
-
-**BACK VIEW INSPECTION:**
-- **The rear trim strip is skewed** assessment
-- **The back package is high and low** evaluation
-- **Heel kick** (front and back kick) analysis
-- Heel counter shape and symmetry
-- **Boot barrel deformation** inspection
-- Back seam alignment and straightness
-- Heel to sole attachment integrity
-
-**LEFT/RIGHT SIDE INSPECTION:**
-- **The waist is not smooth** evaluation
-- **Sole to upper bonding** quality assessment
-- **Mesothelial wrinkles** and **wrinkled upper** detection
-- **The upper is damaged** inspection
-- **Overflowing glue** visibility
-- Profile shape consistency and symmetry
-- **Rubber wire** identification
-
-**TOP VIEW INSPECTION:**
-- **Inner wrinkles** assessment
-- Tongue positioning and symmetry
-- **Upper thread** and stitching alignment
-- **The middle skin is glued** evaluation
-- **Skewed lines** detection
-- **Toe corners** inspection
-
-**SOLE VIEW INSPECTION:**
-- **The outsole combination is not tight** assessment
-- **The outsole lacks glue** detection
-- **Lack of glue** inspection
-- **The sole is uneven** evaluation
-- **Outsole debonding** inspection
-- **The inside exploded** evaluation (if visible)
-- Outsole pattern completeness
-- **The skin is glued** quality check
-
-## INSPECTION METHODOLOGY:
-1. **Systematic Visual Scan:** Examine the shoe systematically from one end to the other
-2. **Lighting Assessment:** Consider if image lighting affects defect visibility
-3. **Symmetry Check:** Compare left vs right sides for consistency
-4. **Scale Assessment:** Evaluate defect size relative to shoe size (minor/major/critical)
-5. **Functionality Impact:** Consider if defect affects shoe performance or durability
-6. **Customer Perception:** Would an average consumer notice and be concerned?
-
-## QUALITY ASSESSMENT CRITERIA:
-- **Good:** No visible defects or only very minor cosmetic issues
-- **Fair:** Minor defects present but within acceptable limits
-- **Poor:** Major defects present or excessive minor defects
-
-## CONFIDENCE LEVEL GUIDELINES:
-- **High:** Clear, well-lit image with obvious defects or clearly clean areas
-- **Medium:** Adequate image quality with some uncertainty due to angle/lighting
-- **Low:** Poor image quality, shadows, or unclear areas affecting assessment
-
-## OUTPUT REQUIREMENTS:
-Provide your professional assessment in this EXACT JSON format:
-
-```json
+Provide assessment in this JSON format:
 {{
     "angle": "{angle_name}",
-    "critical_defects": ["Be specific: location + defect type + severity"],
-    "major_defects": ["Include exact location and detailed description"], 
-    "minor_defects": ["Precise location and nature of defect"],
+    "critical_defects": ["specific defect descriptions"],
+    "major_defects": ["specific defect descriptions"], 
+    "minor_defects": ["specific defect descriptions"],
     "overall_condition": "Good/Fair/Poor",
     "confidence": "High/Medium/Low",
-    "inspection_notes": "Professional summary with any concerns about image quality or recommendations"
+    "inspection_notes": "Brief summary of findings"
 }}
-```
-
-## PROFESSIONAL STANDARDS:
-- Apply the same scrutiny you would for premium retail footwear
-- Remember that consumers will examine these shoes closely in stores
-- Consider that defects may become more pronounced with wear
-- Prioritize customer satisfaction and brand reputation
-- When in doubt about borderline cases, classify as the higher severity level
-- Use the size-based severity system: very small = minor, small = major, medium to big = critical
-
-## INSPECTION DIRECTIVE:
-Conduct a thorough, professional quality control inspection of this {angle_name} view. Apply your expertise to identify all visible defects with precision and professional judgment. Your assessment will determine if this product meets manufacturing quality standards for retail distribution.
-
-Focus on this specific angle and provide detailed, actionable feedback that would help improve manufacturing processes. Pay special attention to the comprehensive defect categories listed above and classify each defect according to the size-based severity system."""
-    
-    try:
+"""
+        
         response = client.chat.completions.create(
-            model="gpt-4o",  # Using GPT-4 with vision capabilities
+            model="gpt-4o",
             messages=[
                 {
                     "role": "user",
@@ -270,14 +98,13 @@ Focus on this specific angle and provide detailed, actionable feedback that woul
                     ]
                 }
             ],
-            max_tokens=800,  # Increased for detailed responses
-            temperature=0.1  # Low temperature for consistent, factual analysis
+            max_tokens=600,
+            temperature=0.1
         )
         
-        # Parse the JSON response
-        result_text = response.choices[0].message.content
+        result_text = response.choices[0].message.content.strip()
         
-        # Find JSON in the response
+        # Find and parse JSON
         start_idx = result_text.find('{')
         end_idx = result_text.rfind('}') + 1
         
@@ -285,7 +112,7 @@ Focus on this specific angle and provide detailed, actionable feedback that woul
             json_str = result_text[start_idx:end_idx]
             return json.loads(json_str)
         else:
-            # Fallback if JSON parsing fails
+            # Fallback response
             return {
                 "angle": angle_name,
                 "critical_defects": [],
@@ -293,15 +120,31 @@ Focus on this specific angle and provide detailed, actionable feedback that woul
                 "minor_defects": ["Analysis parsing error - manual review needed"],
                 "overall_condition": "Fair",
                 "confidence": "Low",
-                "inspection_notes": "API response parsing failed - raw response logged"
+                "inspection_notes": "API response parsing failed"
             }
             
     except json.JSONDecodeError as e:
         st.error(f"JSON parsing error for {angle_name}: {str(e)}")
-        return None
+        return {
+            "angle": angle_name,
+            "critical_defects": [],
+            "major_defects": ["JSON parsing error"],
+            "minor_defects": [],
+            "overall_condition": "Fair",
+            "confidence": "Low",
+            "inspection_notes": f"Error: {str(e)}"
+        }
     except Exception as e:
         st.error(f"Error analyzing {angle_name}: {str(e)}")
-        return None
+        return {
+            "angle": angle_name,
+            "critical_defects": [],
+            "major_defects": ["Analysis error"],
+            "minor_defects": [],
+            "overall_condition": "Fair",
+            "confidence": "Low",
+            "inspection_notes": f"Error: {str(e)}"
+        }
 
 # Generate comprehensive QC Report
 def generate_qc_report(analyses, order_info):
@@ -329,12 +172,11 @@ def generate_qc_report(analyses, order_info):
     major_count = len(all_major)
     minor_count = len(all_minor)
     
-    # Apply AQL 2.5 standards (based on sample size of 200 pieces)
-    # These are the actual limits from your inspection report
+    # AQL 2.5 standards
     aql_limits = {
-        "critical": 0,  # Zero tolerance for critical defects
-        "major": 10,    # Maximum 10 major defects allowed
-        "minor": 14     # Maximum 14 minor defects allowed
+        "critical": 0,  # Zero tolerance
+        "major": 10,    # Maximum 10 major defects
+        "minor": 14     # Maximum 14 minor defects
     }
     
     # Determine final result
@@ -363,449 +205,17 @@ def generate_qc_report(analyses, order_info):
         "aql_limits": aql_limits
     }
 
-# Enhanced HTML Report Generation
-def generate_html_report(export_report, po_number, style_number):
-    """Generate a professional HTML report with styling"""
-    
-    inspection_data = export_report['inspection_summary']
-    defect_data = export_report['defect_summary']
-    defects = export_report['defect_details']
-    
-    # Determine result color
-    result_colors = {
-        "ACCEPT": "#28a745",  # Green
-        "REWORK": "#ffc107",  # Yellow
-        "REJECT": "#dc3545"   # Red
-    }
-    
-    result_color = result_colors.get(inspection_data['final_result'], "#6c757d")
-    
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>QC Inspection Report - {po_number}</title>
-        <style>
-            body {{
-                font-family: 'Arial', sans-serif;
-                line-height: 1.6;
-                margin: 0;
-                padding: 20px;
-                background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-                color: #333;
-            }}
-            
-            .report-container {{
-                max-width: 800px;
-                margin: 0 auto;
-                background: white;
-                border-radius: 10px;
-                box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-                overflow: hidden;
-            }}
-            
-            .header {{
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-                padding: 30px;
-                text-align: center;
-                position: relative;
-            }}
-            
-            .header::before {{
-                content: '🔍';
-                font-size: 3rem;
-                position: absolute;
-                top: 15px;
-                left: 30px;
-                opacity: 0.3;
-            }}
-            
-            .header h1 {{
-                margin: 0;
-                font-size: 2.2rem;
-                font-weight: bold;
-                text-transform: uppercase;
-                letter-spacing: 2px;
-            }}
-            
-            .header .subtitle {{
-                margin: 10px 0 0 0;
-                font-size: 1rem;
-                opacity: 0.9;
-                font-style: italic;
-            }}
-            
-            .content {{
-                padding: 30px;
-            }}
-            
-            .result-banner {{
-                background: {result_color};
-                color: white;
-                padding: 20px;
-                margin: -30px -30px 30px -30px;
-                text-align: center;
-                font-size: 1.4rem;
-                font-weight: bold;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-            }}
-            
-            .info-grid {{
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                gap: 20px;
-                margin-bottom: 30px;
-                padding: 20px;
-                background: #f8f9fa;
-                border-radius: 8px;
-                border-left: 5px solid #667eea;
-            }}
-            
-            .info-item {{
-                display: flex;
-                align-items: center;
-            }}
-            
-            .info-label {{
-                font-weight: bold;
-                color: #495057;
-                margin-right: 10px;
-                min-width: 80px;
-            }}
-            
-            .info-value {{
-                color: #212529;
-                font-family: 'Courier New', monospace;
-                background: white;
-                padding: 4px 8px;
-                border-radius: 4px;
-                border: 1px solid #dee2e6;
-            }}
-            
-            .metrics-container {{
-                display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: 20px;
-                margin: 30px 0;
-            }}
-            
-            .metric-card {{
-                text-align: center;
-                padding: 20px;
-                border-radius: 10px;
-                box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-                position: relative;
-                overflow: hidden;
-            }}
-            
-            .metric-card.critical {{
-                background: linear-gradient(135deg, #ff6b6b, #ee5a52);
-                color: white;
-            }}
-            
-            .metric-card.major {{
-                background: linear-gradient(135deg, #feca57, #ff9ff3);
-                color: white;
-            }}
-            
-            .metric-card.minor {{
-                background: linear-gradient(135deg, #48dbfb, #0abde3);
-                color: white;
-            }}
-            
-            .metric-number {{
-                font-size: 2.5rem;
-                font-weight: bold;
-                margin-bottom: 10px;
-            }}
-            
-            .metric-label {{
-                font-size: 0.9rem;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-                opacity: 0.9;
-            }}
-            
-            .metric-limit {{
-                font-size: 0.8rem;
-                opacity: 0.8;
-                margin-top: 5px;
-            }}
-            
-            .defects-section {{
-                margin-top: 30px;
-            }}
-            
-            .section-title {{
-                font-size: 1.3rem;
-                font-weight: bold;
-                color: #495057;
-                margin: 25px 0 15px 0;
-                padding: 10px 0;
-                border-bottom: 2px solid #e9ecef;
-                display: flex;
-                align-items: center;
-            }}
-            
-            .defect-list {{
-                background: #fff;
-                border-radius: 8px;
-                padding: 20px;
-                margin-bottom: 20px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            }}
-            
-            .defect-item {{
-                padding: 12px;
-                margin: 8px 0;
-                border-radius: 6px;
-                border-left: 4px solid;
-                display: flex;
-                align-items: flex-start;
-            }}
-            
-            .defect-item.critical {{
-                background: #fff5f5;
-                border-left-color: #dc3545;
-                color: #721c24;
-            }}
-            
-            .defect-item.major {{
-                background: #fff8e1;
-                border-left-color: #ffc107;
-                color: #7d4e00;
-            }}
-            
-            .defect-item.minor {{
-                background: #e3f2fd;
-                border-left-color: #17a2b8;
-                color: #0c5460;
-            }}
-            
-            .defect-number {{
-                font-weight: bold;
-                margin-right: 10px;
-                min-width: 25px;
-            }}
-            
-            .no-defects {{
-                text-align: center;
-                padding: 20px;
-                color: #28a745;
-                font-style: italic;
-                background: #f8fff8;
-                border: 1px dashed #28a745;
-                border-radius: 6px;
-            }}
-            
-            .footer {{
-                background: #f8f9fa;
-                padding: 20px 30px;
-                text-align: center;
-                color: #6c757d;
-                border-top: 1px solid #e9ecef;
-            }}
-            
-            .footer .logo {{
-                font-size: 1.1rem;
-                font-weight: bold;
-                color: #495057;
-            }}
-            
-            .generated-info {{
-                font-size: 0.9rem;
-                margin-top: 10px;
-            }}
-            
-            .reason-box {{
-                background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-                color: white;
-                padding: 15px;
-                border-radius: 8px;
-                margin: 20px 0;
-                text-align: center;
-                font-weight: 500;
-            }}
-            
-            @media print {{
-                body {{ background: white; }}
-                .report-container {{ box-shadow: none; }}
-            }}
-            
-            .icon {{
-                font-size: 1.2rem;
-                margin-right: 10px;
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="report-container">
-            <div class="header">
-                <h1>Quality Control Inspection Report</h1>
-                <p class="subtitle">AI-Powered Footwear Analysis • AQL 2.5 Standard</p>
-            </div>
-            
-            <div class="content">
-                <div class="result-banner">
-                    🎯 Final Result: {inspection_data['final_result']}
-                </div>
-                
-                <div class="reason-box">
-                    <strong>📋 Decision Rationale:</strong> {export_report['decision_rationale']}
-                </div>
-                
-                <div class="info-grid">
-                    <div class="info-item">
-                        <span class="info-label">📦 PO Number:</span>
-                        <span class="info-value">{inspection_data['po_number']}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">👟 Style:</span>
-                        <span class="info-value">{inspection_data['style_number']}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">🎨 Color:</span>
-                        <span class="info-value">{inspection_data['color']}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">🏢 Customer:</span>
-                        <span class="info-value">{inspection_data['customer']}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">👨‍🔬 Inspector:</span>
-                        <span class="info-value">{inspection_data['inspector']}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">📅 Date:</span>
-                        <span class="info-value">{inspection_data['inspection_date']}</span>
-                    </div>
-                </div>
-                
-                <div class="section-title">
-                    <span class="icon">📊</span>
-                    Defect Summary (AQL 2.5 Standard)
-                </div>
-                
-                <div class="metrics-container">
-                    <div class="metric-card critical">
-                        <div class="metric-number">{defect_data['critical_count']}</div>
-                        <div class="metric-label">🚨 Critical Defects</div>
-                        <div class="metric-limit">Limit: {defect_data['aql_limits']['critical']}</div>
-                    </div>
-                    <div class="metric-card major">
-                        <div class="metric-number">{defect_data['major_count']}</div>
-                        <div class="metric-label">⚠️ Major Defects</div>
-                        <div class="metric-limit">Limit: {defect_data['aql_limits']['major']}</div>
-                    </div>
-                    <div class="metric-card minor">
-                        <div class="metric-number">{defect_data['minor_count']}</div>
-                        <div class="metric-label">ℹ️ Minor Defects</div>
-                        <div class="metric-limit">Limit: {defect_data['aql_limits']['minor']}</div>
-                    </div>
-                </div>
-                
-                <div class="defects-section">
-    """
-    
-    # Critical Defects Section
-    html_content += """
-                    <div class="section-title">
-                        <span class="icon">🚨</span>
-                        Critical Defects
-                    </div>
-                    <div class="defect-list">
-    """
-    
-    if defects['critical_defects']:
-        for i, defect in enumerate(defects['critical_defects'], 1):
-            html_content += f"""
-                        <div class="defect-item critical">
-                            <span class="defect-number">{i}.</span>
-                            <span>{defect}</span>
-                        </div>
-            """
-    else:
-        html_content += '<div class="no-defects">✅ No critical defects found</div>'
-    
-    html_content += "</div>"
-    
-    # Major Defects Section
-    html_content += """
-                    <div class="section-title">
-                        <span class="icon">⚠️</span>
-                        Major Defects
-                    </div>
-                    <div class="defect-list">
-    """
-    
-    if defects['major_defects']:
-        for i, defect in enumerate(defects['major_defects'], 1):
-            html_content += f"""
-                        <div class="defect-item major">
-                            <span class="defect-number">{i}.</span>
-                            <span>{defect}</span>
-                        </div>
-            """
-    else:
-        html_content += '<div class="no-defects">✅ No major defects found</div>'
-    
-    html_content += "</div>"
-    
-    # Minor Defects Section
-    html_content += """
-                    <div class="section-title">
-                        <span class="icon">ℹ️</span>
-                        Minor Defects
-                    </div>
-                    <div class="defect-list">
-    """
-    
-    if defects['minor_defects']:
-        for i, defect in enumerate(defects['minor_defects'], 1):
-            html_content += f"""
-                        <div class="defect-item minor">
-                            <span class="defect-number">{i}.</span>
-                            <span>{defect}</span>
-                        </div>
-            """
-    else:
-        html_content += '<div class="no-defects">✅ No minor defects found</div>'
-    
-    html_content += f"""
-                    </div>
-                </div>
-            </div>
-            
-            <div class="footer">
-                <div class="logo">🤖 AI Footwear Quality Control Inspector</div>
-                <div class="generated-info">
-                    Report generated on {inspection_data['inspection_date']} using OpenAI GPT-4 Vision API<br>
-                    Powered by advanced computer vision and professional QC expertise
-                </div>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-    
-    return html_content
-
-# Enhanced Text Report Generation
+# Generate styled text report
 def generate_styled_text_report(export_report, po_number, style_number):
-    """Generate a styled text report with better formatting and emojis"""
+    """Generate a styled text report"""
     
     inspection_data = export_report['inspection_summary']
     defect_data = export_report['defect_summary']
     defects = export_report['defect_details']
     
     # Create styled separator lines
-    main_separator = "═" * 70
-    sub_separator = "─" * 70
-    section_separator = "•" * 70
+    main_separator = "=" * 70
+    sub_separator = "-" * 70
     
     # Result styling
     result_symbols = {
@@ -831,8 +241,6 @@ def generate_styled_text_report(export_report, po_number, style_number):
 📅 Inspection Date    : {inspection_data['inspection_date']}
 ⚡ Standard Applied   : AQL 2.5 International Standard
 
-{section_separator}
-
 🎯 FINAL INSPECTION RESULT
 {sub_separator}
 {result_display}
@@ -840,17 +248,13 @@ def generate_styled_text_report(export_report, po_number, style_number):
 📝 DECISION RATIONALE:
 {export_report['decision_rationale']}
 
-{section_separator}
-
 📊 DEFECT SUMMARY (AQL 2.5 COMPLIANCE)
 {sub_separator}
 🚨 Critical Defects   : {defect_data['critical_count']:>3} / {defect_data['aql_limits']['critical']:>3} (Limit)
 ⚠️  Major Defects      : {defect_data['major_count']:>3} / {defect_data['aql_limits']['major']:>3} (Limit)
 ℹ️  Minor Defects      : {defect_data['minor_count']:>3} / {defect_data['aql_limits']['minor']:>3} (Limit)
 
-{section_separator}
-
-🚨 CRITICAL DEFECTS (Zero Tolerance)
+🚨 CRITICAL DEFECTS
 {sub_separator}"""
 
     if defects['critical_defects']:
@@ -861,9 +265,7 @@ def generate_styled_text_report(export_report, po_number, style_number):
 
     text_report += f"""
 
-{section_separator}
-
-⚠️ MAJOR DEFECTS (Customer Impact)
+⚠️ MAJOR DEFECTS
 {sub_separator}"""
 
     if defects['major_defects']:
@@ -874,9 +276,7 @@ def generate_styled_text_report(export_report, po_number, style_number):
 
     text_report += f"""
 
-{section_separator}
-
-ℹ️ MINOR DEFECTS (Cosmetic Issues)
+ℹ️ MINOR DEFECTS
 {sub_separator}"""
 
     if defects['minor_defects']:
@@ -888,37 +288,15 @@ def generate_styled_text_report(export_report, po_number, style_number):
     text_report += f"""
 
 {main_separator}
-
-🏭 QUALITY ASSURANCE CERTIFICATION
-{sub_separator}
-This inspection has been conducted in accordance with:
-• AQL 2.5 International Quality Standard (ISO 2859-1)
-• Professional footwear manufacturing guidelines  
-• Customer-specific quality requirements
-• Industry best practices for retail footwear
-
-🤖 TECHNOLOGY DETAILS
-{sub_separator}
-• Analysis Engine    : OpenAI GPT-4 Vision API
-• Computer Vision    : Advanced image recognition
-• QC Expertise       : 15+ years professional knowledge base
-• Processing Time    : Real-time analysis
-• Accuracy Level     : Professional grade inspection
-
-📊 REPORT METADATA
-{sub_separator}
-• Report Generated   : {inspection_data['inspection_date']}
-• Document Version   : AI-QC-v2.0
-• File Format        : Professional Quality Report
-• Certification      : AI-Powered Quality Control System
-
-{main_separator}
 🎯 End of Report - AI Footwear Quality Control Inspector
-    Transforming Manufacturing QC with Computer Vision
 {main_separator}
 """
 
     return text_report
+
+# Initialize session state
+if "openai_client" not in st.session_state:
+    st.session_state.openai_client = None
 
 # Sidebar configuration
 with st.sidebar:
@@ -934,15 +312,17 @@ with st.sidebar:
     if api_key:
         st.success("✅ API Key configured!")
         st.info("💡 Cost: ~$0.01-0.03 per image analysis")
-        # Store in session state
-        if "openai_client" not in st.session_state:
+        try:
             st.session_state.openai_client = openai.OpenAI(api_key=api_key)
+        except Exception as e:
+            st.error(f"Error initializing OpenAI client: {str(e)}")
+            st.session_state.openai_client = None
     else:
         st.warning("⚠️ Please enter your OpenAI API key to proceed")
         st.markdown("[Get API Key →](https://platform.openai.com/api-keys)")
 
 # Main interface
-if api_key:
+if st.session_state.openai_client:
     # Order Information Section
     st.header("📋 Order Information")
     col1, col2, col3 = st.columns(3)
@@ -964,7 +344,7 @@ if api_key:
     # Image Upload Section
     st.header("📸 Upload Shoe Images")
     st.markdown("""
-    **Instructions:** Upload 4-6 high-quality images from different angles:
+    **Instructions:** Upload 2-6 high-quality images from different angles:
     - 📐 **Front View:** Toe cap, laces, tongue
     - 🔄 **Back View:** Heel, counter, back seam  
     - ↔️ **Side Views:** Left and right profile
@@ -995,9 +375,12 @@ if api_key:
         for idx, uploaded_file in enumerate(uploaded_files):
             col_idx = idx % 3
             with cols[col_idx]:
-                image = Image.open(uploaded_file)
-                angle_name = angle_names[idx] if idx < len(angle_names) else f"Additional View {idx+1}"
-                st.image(image, caption=angle_name, use_column_width=True)
+                try:
+                    image = Image.open(uploaded_file)
+                    angle_name = angle_names[idx] if idx < len(angle_names) else f"Additional View {idx+1}"
+                    st.image(image, caption=angle_name, use_column_width=True)
+                except Exception as e:
+                    st.error(f"Error displaying image {idx+1}: {str(e)}")
         
         st.divider()
         
@@ -1017,16 +400,28 @@ if api_key:
                 angle_name = angle_names[idx] if idx < len(angle_names) else f"Additional View {idx+1}"
                 status_text.text(f"🔍 Analyzing {angle_name}... ({idx+1}/{total_images})")
                 
-                image = Image.open(uploaded_file)
-                analysis = analyze_shoe_image(
-                    st.session_state.openai_client, 
-                    image, 
-                    angle_name, 
-                    style_number, 
-                    color, 
-                    po_number
-                )
-                analyses.append(analysis)
+                try:
+                    image = Image.open(uploaded_file)
+                    analysis = analyze_shoe_image(
+                        st.session_state.openai_client, 
+                        image, 
+                        angle_name, 
+                        style_number, 
+                        color, 
+                        po_number
+                    )
+                    analyses.append(analysis)
+                except Exception as e:
+                    st.error(f"Error processing image {angle_name}: {str(e)}")
+                    analyses.append({
+                        "angle": angle_name,
+                        "critical_defects": [],
+                        "major_defects": [f"Processing error: {str(e)}"],
+                        "minor_defects": [],
+                        "overall_condition": "Poor",
+                        "confidence": "Low",
+                        "inspection_notes": f"Image processing failed: {str(e)}"
+                    })
                 
                 progress_bar.progress((idx + 1) / total_images)
             
@@ -1058,11 +453,11 @@ if api_key:
             
             col1, col2 = st.columns([1, 2])
             with col1:
-                st.markdown(f"### Final Result:")
+                st.markdown("### Final Result:")
                 st.markdown(f"## :{result_colors[final_report['result']]}[{final_report['result']}]")
             
             with col2:
-                st.markdown(f"### Reason:")
+                st.markdown("### Reason:")
                 st.markdown(f"**{final_report['reason']}**")
                 st.markdown(f"*Inspection completed on {inspection_date.strftime('%B %d, %Y')}*")
             
@@ -1139,8 +534,11 @@ if api_key:
                         with col2:
                             # Show the corresponding image thumbnail
                             if idx < len(uploaded_files):
-                                thumb_image = Image.open(uploaded_files[idx])
-                                st.image(thumb_image, caption=f"{angle_name}", width=150)
+                                try:
+                                    thumb_image = Image.open(uploaded_files[idx])
+                                    st.image(thumb_image, caption=f"{angle_name}", width=150)
+                                except Exception as e:
+                                    st.error(f"Error displaying thumbnail: {str(e)}")
                         
                         if analysis.get('inspection_notes'):
                             st.markdown(f"**Inspector Notes:** {analysis['inspection_notes']}")
@@ -1176,8 +574,8 @@ if api_key:
                 "decision_rationale": final_report['reason']
             }
             
-            # Enhanced Export Section with three columns
-            col1, col2, col3 = st.columns(3)
+            # Export buttons
+            col1, col2 = st.columns(2)
             
             with col1:
                 st.download_button(
@@ -1189,21 +587,10 @@ if api_key:
                 )
             
             with col2:
-                # Generate HTML report
-                html_report = generate_html_report(export_report, po_number, style_number)
-                st.download_button(
-                    label="🎨 Download HTML Report",
-                    data=html_report,
-                    file_name=f"QC_Report_{po_number}_{style_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html",
-                    mime="text/html",
-                    use_container_width=True
-                )
-            
-            with col3:
                 # Generate styled text report
                 styled_text_report = generate_styled_text_report(export_report, po_number, style_number)
                 st.download_button(
-                    label="📝 Download Styled Report",
+                    label="📝 Download Text Report",
                     data=styled_text_report,
                     file_name=f"QC_Report_{po_number}_{style_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
                     mime="text/plain",
@@ -1262,4 +649,3 @@ st.markdown("""
     <em>AI Footwear Quality Control Inspector - Transforming Manufacturing QC with Computer Vision</em>
 </div>
 """, unsafe_allow_html=True)
-
