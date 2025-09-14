@@ -68,10 +68,7 @@ DETAILED DEFECT CLASSIFICATION SYSTEM:
 - Chemical odors or visible contamination
 - Unstable heel attachment causing tilt or instability
 
-**3. Wrong Product Issues:**
-- Completely wrong style, size, or color
-- Left/right shoe mismatch
-- Missing essential components (entire tongue, heel, etc.)
+
 
 ⚠️ MAJOR DEFECTS (Require Rework - Customer Visible Issues):
 **1. Adhesive & Bonding Problems:**
@@ -1250,4 +1247,5 @@ st.markdown("""
     <em>AI Footwear Quality Control Inspector - Transforming Manufacturing QC with Computer Vision</em>
 </div>
 """, unsafe_allow_html=True)
+
 
