@@ -145,7 +145,7 @@ DETAILED DEFECT CLASSIFICATION SYSTEM:
 - **Toe corners** with slight irregularities
 
 **3. Cosmetic Issues:**
-- Very small scratches (<3mm)
+
 - Minor sole texture variations
 - Slight asymmetry in non-structural elements
 - Minor trim imperfections
@@ -1247,5 +1247,6 @@ st.markdown("""
     <em>AI Footwear Quality Control Inspector - Transforming Manufacturing QC with Computer Vision</em>
 </div>
 """, unsafe_allow_html=True)
+
 
 
