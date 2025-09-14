@@ -5,6 +5,11 @@ from PIL import Image
 import io
 from datetime import datetime
 import json
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Set up the page
 st.set_page_config(
@@ -15,6 +20,33 @@ st.set_page_config(
 
 st.title("🔍 AI Footwear Quality Control Inspector")
 st.markdown("*Powered by OpenAI GPT-4 Vision API*")
+
+# Initialize OpenAI client with environment variable
+@st.cache_resource
+def initialize_openai_client():
+    """Initialize OpenAI client with API key from environment variables"""
+    api_key = os.getenv('OPENAI_API_KEY')
+    if not api_key:
+        st.error("❌ OPENAI_API_KEY not found in environment variables!")
+        st.markdown("""
+        **Setup Instructions:**
+        1. Create a `.env` file in your project directory
+        2. Add your OpenAI API key: `OPENAI_API_KEY=your_api_key_here`
+        3. Restart the application
+        
+        [Get API Key →](https://platform.openai.com/api-keys)
+        """)
+        st.stop()
+    
+    try:
+        client = openai.OpenAI(api_key=api_key)
+        return client
+    except Exception as e:
+        st.error(f"❌ Failed to initialize OpenAI client: {str(e)}")
+        st.stop()
+
+# Initialize the client
+openai_client = initialize_openai_client()
 
 # Function to encode image
 def encode_image(image):
@@ -908,329 +940,296 @@ This inspection has been conducted in accordance with:
 
     return text_report
 
-# Sidebar configuration
+# Sidebar configuration - Updated to show API status instead of input
 with st.sidebar:
     st.header("🔧 Configuration")
     st.markdown("**OpenAI Model:** GPT-4 Vision (gpt-4o)")
     
-    api_key = st.text_input(
-        "OpenAI API Key", 
-        type="password", 
-        help="Enter your OpenAI API key. Get one at https://platform.openai.com/api-keys"
-    )
-    
-    if api_key:
-        st.success("✅ API Key configured!")
+    # Show API key status
+    if os.getenv('OPENAI_API_KEY'):
+        st.success("✅ API Key loaded from environment!")
         st.info("💡 Cost: ~$0.01-0.03 per image analysis")
-        # Store in session state
-        if "openai_client" not in st.session_state:
-            st.session_state.openai_client = openai.OpenAI(api_key=api_key)
     else:
-        st.warning("⚠️ Please enter your OpenAI API key to proceed")
-        st.markdown("[Get API Key →](https://platform.openai.com/api-keys)")
+        st.error("❌ API Key not found!")
+        st.markdown("""
+        **Setup Required:**
+        1. Create `.env` file in project directory
+        2. Add: `OPENAI_API_KEY=your_api_key_here`
+        3. Restart the application
+        """)
 
 # Main interface
-if api_key:
-    # Order Information Section
-    st.header("📋 Order Information")
-    col1, col2, col3 = st.columns(3)
+# Order Information Section
+st.header("📋 Order Information")
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    po_number = st.text_input("PO Number", value="0144540", help="Purchase Order Number")
+    customer = st.text_input("Customer", value="MIA", help="Customer/Brand Name")
     
-    with col1:
-        po_number = st.text_input("PO Number", value="0144540", help="Purchase Order Number")
-        customer = st.text_input("Customer", value="MIA", help="Customer/Brand Name")
-        
-    with col2:
-        style_number = st.text_input("Style Number", value="GS1412401B", help="Product Style Code")
-        color = st.text_input("Color", value="PPB", help="Product Color Code")
-        
-    with col3:
-        inspector = st.text_input("Inspector Name", value="AI Inspector", help="QC Inspector Name")
-        inspection_date = st.date_input("Inspection Date", value=datetime.now().date())
+with col2:
+    style_number = st.text_input("Style Number", value="GS1412401B", help="Product Style Code")
+    color = st.text_input("Color", value="PPB", help="Product Color Code")
+    
+with col3:
+    inspector = st.text_input("Inspector Name", value="AI Inspector", help="QC Inspector Name")
+    inspection_date = st.date_input("Inspection Date", value=datetime.now().date())
+
+st.divider()
+
+# Image Upload Section
+st.header("📸 Upload Shoe Images")
+st.markdown("""
+**Instructions:** Upload 4-6 high-quality images from different angles:
+- 📐 **Front View:** Toe cap, laces, tongue
+- 🔄 **Back View:** Heel, counter, back seam  
+- ↔️ **Side Views:** Left and right profile
+- ⬆️ **Top View:** Overall upper symmetry
+- ⬇️ **Sole View:** Outsole and bottom
+""")
+
+uploaded_files = st.file_uploader(
+    "Choose images (JPG, PNG)",
+    accept_multiple_files=True,
+    type=['png', 'jpg', 'jpeg'],
+    help="Upload clear, well-lit images from multiple angles"
+)
+
+if uploaded_files and len(uploaded_files) >= 2:
+    st.success(f"✅ {len(uploaded_files)} images uploaded successfully")
+    
+    # Define standard viewing angles
+    angle_names = [
+        "Front View", "Back View", "Left Side View", 
+        "Right Side View", "Top View", "Sole View"
+    ]
+    
+    # Display uploaded images in grid
+    st.subheader("📷 Image Preview")
+    cols = st.columns(min(len(uploaded_files), 3))
+    
+    for idx, uploaded_file in enumerate(uploaded_files):
+        col_idx = idx % 3
+        with cols[col_idx]:
+            image = Image.open(uploaded_file)
+            angle_name = angle_names[idx] if idx < len(angle_names) else f"Additional View {idx+1}"
+            st.image(image, caption=angle_name, use_container_width=True)
     
     st.divider()
     
-    # Image Upload Section
-    st.header("📸 Upload Shoe Images")
-    st.markdown("""
-    **Instructions:** Upload 4-6 high-quality images from different angles:
-    - 📐 **Front View:** Toe cap, laces, tongue
-    - 🔄 **Back View:** Heel, counter, back seam  
-    - ↔️ **Side Views:** Left and right profile
-    - ⬆️ **Top View:** Overall upper symmetry
-    - ⬇️ **Sole View:** Outsole and bottom
-    """)
-    
-    uploaded_files = st.file_uploader(
-        "Choose images (JPG, PNG)",
-        accept_multiple_files=True,
-        type=['png', 'jpg', 'jpeg'],
-        help="Upload clear, well-lit images from multiple angles"
-    )
-
-    if uploaded_files and len(uploaded_files) >= 2:
-        st.success(f"✅ {len(uploaded_files)} images uploaded successfully")
+    # Analysis Section
+    if st.button("🔍 Start AI Quality Inspection", type="primary", use_container_width=True):
+        st.header("🤖 AI Analysis in Progress...")
         
-        # Define standard viewing angles
-        angle_names = [
-            "Front View", "Back View", "Left Side View", 
-            "Right Side View", "Top View", "Sole View"
-        ]
+        # Progress tracking
+        total_images = len(uploaded_files)
+        progress_bar = st.progress(0)
+        status_text = st.empty()
         
-        # Display uploaded images in grid
-        st.subheader("📷 Image Preview")
-        cols = st.columns(min(len(uploaded_files), 3))
+        analyses = []
         
+        # Analyze each image
         for idx, uploaded_file in enumerate(uploaded_files):
-            col_idx = idx % 3
-            with cols[col_idx]:
-                image = Image.open(uploaded_file)
-                angle_name = angle_names[idx] if idx < len(angle_names) else f"Additional View {idx+1}"
-                st.image(image, caption=angle_name,use_container_width=True)
+            angle_name = angle_names[idx] if idx < len(angle_names) else f"Additional View {idx+1}"
+            status_text.text(f"🔍 Analyzing {angle_name}... ({idx+1}/{total_images})")
+            
+            image = Image.open(uploaded_file)
+            analysis = analyze_shoe_image(
+                openai_client, 
+                image, 
+                angle_name, 
+                style_number, 
+                color, 
+                po_number
+            )
+            analyses.append(analysis)
+            
+            progress_bar.progress((idx + 1) / total_images)
+        
+        status_text.text("✅ Analysis complete! Generating report...")
+        
+        # Generate final QC report
+        order_info = {
+            "po_number": po_number,
+            "style_number": style_number,
+            "color": color,
+            "customer": customer,
+            "inspector": inspector,
+            "inspection_date": inspection_date.strftime("%Y-%m-%d")
+        }
+        
+        final_report = generate_qc_report(analyses, order_info)
         
         st.divider()
         
-        # Analysis Section
-        if st.button("🔍 Start AI Quality Inspection", type="primary", use_container_width=True):
-            st.header("🤖 AI Analysis in Progress...")
+        # Display Results
+        st.header("📊 Quality Control Inspection Report")
+        
+        # Result Header
+        result_colors = {
+            "ACCEPT": "success",
+            "REWORK": "warning", 
+            "REJECT": "error"
+        }
+        
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            st.markdown(f"### Final Result:")
+            st.markdown(f"## :{result_colors[final_report['result']]}[{final_report['result']}]")
+        
+        with col2:
+            st.markdown(f"### Reason:")
+            st.markdown(f"**{final_report['reason']}**")
+            st.markdown(f"*Inspection completed on {inspection_date.strftime('%B %d, %Y')}*")
+        
+        # Defect Summary Dashboard
+        st.subheader("📈 Defect Summary (AQL 2.5 Standard)")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric(
+                "🚨 Critical Defects", 
+                final_report['critical_count'],
+                delta=f"Limit: {final_report['aql_limits']['critical']}",
+                delta_color="inverse"
+            )
             
-            # Progress tracking
-            total_images = len(uploaded_files)
-            progress_bar = st.progress(0)
-            status_text = st.empty()
+        with col2:
+            major_over_limit = final_report['major_count'] - final_report['aql_limits']['major']
+            st.metric(
+                "⚠️ Major Defects", 
+                final_report['major_count'],
+                delta=f"Limit: {final_report['aql_limits']['major']}",
+                delta_color="inverse" if major_over_limit > 0 else "normal"
+            )
             
-            analyses = []
-            
-            # Analyze each image
-            for idx, uploaded_file in enumerate(uploaded_files):
+        with col3:
+            minor_over_limit = final_report['minor_count'] - final_report['aql_limits']['minor']
+            st.metric(
+                "ℹ️ Minor Defects", 
+                final_report['minor_count'],
+                delta=f"Limit: {final_report['aql_limits']['minor']}",
+                delta_color="inverse" if minor_over_limit > 0 else "normal"
+            )
+        
+        # Detailed Defect Lists
+        if final_report['critical_defects']:
+            st.subheader("🚨 Critical Defects (Must Fix)")
+            for i, defect in enumerate(final_report['critical_defects'], 1):
+                st.error(f"**{i}.** {defect}")
+        
+        if final_report['major_defects']:
+            st.subheader("⚠️ Major Defects (Require Attention)")
+            for i, defect in enumerate(final_report['major_defects'], 1):
+                st.warning(f"**{i}.** {defect}")
+        
+        if final_report['minor_defects']:
+            st.subheader("ℹ️ Minor Defects (Monitor)")
+            for i, defect in enumerate(final_report['minor_defects'], 1):
+                st.info(f"**{i}.** {defect}")
+        
+        # Individual Angle Analysis
+        st.subheader("🔍 Detailed Analysis by View")
+        
+        for idx, analysis in enumerate(analyses):
+            if analysis:
                 angle_name = angle_names[idx] if idx < len(angle_names) else f"Additional View {idx+1}"
-                status_text.text(f"🔍 Analyzing {angle_name}... ({idx+1}/{total_images})")
                 
-                image = Image.open(uploaded_file)
-                analysis = analyze_shoe_image(
-                    st.session_state.openai_client, 
-                    image, 
-                    angle_name, 
-                    style_number, 
-                    color, 
-                    po_number
-                )
-                analyses.append(analysis)
+                # Color code based on condition
+                condition_colors = {"Good": "🟢", "Fair": "🟡", "Poor": "🔴"}
+                condition_icon = condition_colors.get(analysis['overall_condition'], "⚫")
                 
-                progress_bar.progress((idx + 1) / total_images)
-            
-            status_text.text("✅ Analysis complete! Generating report...")
-            
-            # Generate final QC report
-            order_info = {
-                "po_number": po_number,
-                "style_number": style_number,
-                "color": color,
-                "customer": customer,
-                "inspector": inspector,
-                "inspection_date": inspection_date.strftime("%Y-%m-%d")
-            }
-            
-            final_report = generate_qc_report(analyses, order_info)
-            
-            st.divider()
-            
-            # Display Results
-            st.header("📊 Quality Control Inspection Report")
-            
-            # Result Header
-            result_colors = {
-                "ACCEPT": "success",
-                "REWORK": "warning", 
-                "REJECT": "error"
-            }
-            
-            col1, col2 = st.columns([1, 2])
-            with col1:
-                st.markdown(f"### Final Result:")
-                st.markdown(f"## :{result_colors[final_report['result']]}[{final_report['result']}]")
-            
-            with col2:
-                st.markdown(f"### Reason:")
-                st.markdown(f"**{final_report['reason']}**")
-                st.markdown(f"*Inspection completed on {inspection_date.strftime('%B %d, %Y')}*")
-            
-            # Defect Summary Dashboard
-            st.subheader("📈 Defect Summary (AQL 2.5 Standard)")
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.metric(
-                    "🚨 Critical Defects", 
-                    final_report['critical_count'],
-                    delta=f"Limit: {final_report['aql_limits']['critical']}",
-                    delta_color="inverse"
-                )
-                
-            with col2:
-                major_over_limit = final_report['major_count'] - final_report['aql_limits']['major']
-                st.metric(
-                    "⚠️ Major Defects", 
-                    final_report['major_count'],
-                    delta=f"Limit: {final_report['aql_limits']['major']}",
-                    delta_color="inverse" if major_over_limit > 0 else "normal"
-                )
-                
-            with col3:
-                minor_over_limit = final_report['minor_count'] - final_report['aql_limits']['minor']
-                st.metric(
-                    "ℹ️ Minor Defects", 
-                    final_report['minor_count'],
-                    delta=f"Limit: {final_report['aql_limits']['minor']}",
-                    delta_color="inverse" if minor_over_limit > 0 else "normal"
-                )
-            
-            # Detailed Defect Lists
-            if final_report['critical_defects']:
-                st.subheader("🚨 Critical Defects (Must Fix)")
-                for i, defect in enumerate(final_report['critical_defects'], 1):
-                    st.error(f"**{i}.** {defect}")
-            
-            if final_report['major_defects']:
-                st.subheader("⚠️ Major Defects (Require Attention)")
-                for i, defect in enumerate(final_report['major_defects'], 1):
-                    st.warning(f"**{i}.** {defect}")
-            
-            if final_report['minor_defects']:
-                st.subheader("ℹ️ Minor Defects (Monitor)")
-                for i, defect in enumerate(final_report['minor_defects'], 1):
-                    st.info(f"**{i}.** {defect}")
-            
-            # Individual Angle Analysis
-            st.subheader("🔍 Detailed Analysis by View")
-            
-            for idx, analysis in enumerate(analyses):
-                if analysis:
-                    angle_name = angle_names[idx] if idx < len(angle_names) else f"Additional View {idx+1}"
+                with st.expander(f"{condition_icon} {angle_name} - {analysis['overall_condition']} (Confidence: {analysis['confidence']})"):
+                    col1, col2 = st.columns([2, 1])
                     
-                    # Color code based on condition
-                    condition_colors = {"Good": "🟢", "Fair": "🟡", "Poor": "🔴"}
-                    condition_icon = condition_colors.get(analysis['overall_condition'], "⚫")
+                    with col1:
+                        if analysis['critical_defects']:
+                            st.markdown("**🚨 Critical:** " + " | ".join(analysis['critical_defects']))
+                        if analysis['major_defects']:
+                            st.markdown("**⚠️ Major:** " + " | ".join(analysis['major_defects']))
+                        if analysis['minor_defects']:
+                            st.markdown("**ℹ️ Minor:** " + " | ".join(analysis['minor_defects']))
+                        if not any([analysis['critical_defects'], analysis['major_defects'], analysis['minor_defects']]):
+                            st.success("✅ No defects detected in this view")
                     
-                    with st.expander(f"{condition_icon} {angle_name} - {analysis['overall_condition']} (Confidence: {analysis['confidence']})"):
-                        col1, col2 = st.columns([2, 1])
-                        
-                        with col1:
-                            if analysis['critical_defects']:
-                                st.markdown("**🚨 Critical:** " + " | ".join(analysis['critical_defects']))
-                            if analysis['major_defects']:
-                                st.markdown("**⚠️ Major:** " + " | ".join(analysis['major_defects']))
-                            if analysis['minor_defects']:
-                                st.markdown("**ℹ️ Minor:** " + " | ".join(analysis['minor_defects']))
-                            if not any([analysis['critical_defects'], analysis['major_defects'], analysis['minor_defects']]):
-                                st.success("✅ No defects detected in this view")
-                        
-                        with col2:
-                            # Show the corresponding image thumbnail
-                            if idx < len(uploaded_files):
-                                thumb_image = Image.open(uploaded_files[idx])
-                                st.image(thumb_image, caption=f"{angle_name}", width=150)
-                        
-                        if analysis.get('inspection_notes'):
-                            st.markdown(f"**Inspector Notes:** {analysis['inspection_notes']}")
-            
-            # Export Report Section
-            st.divider()
-            st.subheader("💾 Export Report")
-            
-            # Prepare comprehensive report data
-            export_report = {
-                "inspection_summary": {
-                    "inspection_date": order_info["inspection_date"],
-                    "inspector": order_info["inspector"],
-                    "customer": order_info["customer"],
-                    "po_number": order_info["po_number"],
-                    "style_number": order_info["style_number"],
-                    "color": order_info["color"],
-                    "final_result": final_report['result'],
-                    "inspection_standard": "AQL 2.5"
-                },
-                "defect_summary": {
-                    "critical_count": final_report['critical_count'],
-                    "major_count": final_report['major_count'],
-                    "minor_count": final_report['minor_count'],
-                    "aql_limits": final_report['aql_limits']
-                },
-                "defect_details": {
-                    "critical_defects": final_report['critical_defects'],
-                    "major_defects": final_report['major_defects'],
-                    "minor_defects": final_report['minor_defects']
-                },
-                "angle_analyses": analyses,
-                "decision_rationale": final_report['reason']
-            }
-            
-            # Enhanced Export Section with three columns
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.download_button(
-                    label="📄 Download JSON Report",
-                    data=json.dumps(export_report, indent=2, default=str),
-                    file_name=f"QC_Report_{po_number}_{style_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                    mime="application/json",
-                    use_container_width=True
-                )
-            
-            with col2:
-                # Generate HTML report
-                html_report = generate_html_report(export_report, po_number, style_number)
-                st.download_button(
-                    label="🎨 Download HTML Report",
-                    data=html_report,
-                    file_name=f"QC_Report_{po_number}_{style_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html",
-                    mime="text/html",
-                    use_container_width=True
-                )
-            
-            with col3:
-                # Generate styled text report
-                styled_text_report = generate_styled_text_report(export_report, po_number, style_number)
-                st.download_button(
-                    label="📝 Download Styled Report",
-                    data=styled_text_report,
-                    file_name=f"QC_Report_{po_number}_{style_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                    mime="text/plain",
-                    use_container_width=True
-                )
+                    with col2:
+                        # Show the corresponding image thumbnail
+                        if idx < len(uploaded_files):
+                            thumb_image = Image.open(uploaded_files[idx])
+                            st.image(thumb_image, caption=f"{angle_name}", width=150)
+                    
+                    if analysis.get('inspection_notes'):
+                        st.markdown(f"**Inspector Notes:** {analysis['inspection_notes']}")
+        
+        # Export Report Section
+        st.divider()
+        st.subheader("💾 Export Report")
+        
+        # Prepare comprehensive report data
+        export_report = {
+            "inspection_summary": {
+                "inspection_date": order_info["inspection_date"],
+                "inspector": order_info["inspector"],
+                "customer": order_info["customer"],
+                "po_number": order_info["po_number"],
+                "style_number": order_info["style_number"],
+                "color": order_info["color"],
+                "final_result": final_report['result'],
+                "inspection_standard": "AQL 2.5"
+            },
+            "defect_summary": {
+                "critical_count": final_report['critical_count'],
+                "major_count": final_report['major_count'],
+                "minor_count": final_report['minor_count'],
+                "aql_limits": final_report['aql_limits']
+            },
+            "defect_details": {
+                "critical_defects": final_report['critical_defects'],
+                "major_defects": final_report['major_defects'],
+                "minor_defects": final_report['minor_defects']
+            },
+            "angle_analyses": analyses,
+            "decision_rationale": final_report['reason']
+        }
+        
+        # Enhanced Export Section with three columns
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.download_button(
+                label="📄 Download JSON Report",
+                data=json.dumps(export_report, indent=2, default=str),
+                file_name=f"QC_Report_{po_number}_{style_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                mime="application/json",
+                use_container_width=True
+            )
+        
+        with col2:
+            # Generate HTML report
+            html_report = generate_html_report(export_report, po_number, style_number)
+            st.download_button(
+                label="🎨 Download HTML Report",
+                data=html_report,
+                file_name=f"QC_Report_{po_number}_{style_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html",
+                mime="text/html",
+                use_container_width=True
+            )
+        
+        with col3:
+            # Generate styled text report
+            styled_text_report = generate_styled_text_report(export_report, po_number, style_number)
+            st.download_button(
+                label="📝 Download Styled Report",
+                data=styled_text_report,
+                file_name=f"QC_Report_{po_number}_{style_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                mime="text/plain",
+                use_container_width=True
+            )
 
-    elif uploaded_files and len(uploaded_files) < 2:
-        st.warning("⚠️ Please upload at least 2 images from different angles for proper inspection.")
-    else:
-        st.info("📤 Please upload shoe images to begin quality inspection.")
-
+elif uploaded_files and len(uploaded_files) < 2:
+    st.warning("⚠️ Please upload at least 2 images from different angles for proper inspection.")
 else:
-    # Landing page when no API key
-    st.info("👈 Please enter your OpenAI API key in the sidebar to begin inspection.")
-    
-    # Show demo information
-    st.markdown("---")
-    st.subheader("🎯 About This AI QC Inspector")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("""
-        **🔧 Features:**
-        - Multi-angle shoe analysis
-        - Professional defect classification
-        - AQL 2.5 standard compliance
-        - Detailed inspection reports
-        - Export capabilities
-        """)
-    
-    with col2:
-        st.markdown("""
-        **🎨 Technology:**
-        - OpenAI GPT-4 Vision API
-        - Real-time image analysis
-        - Professional QC expertise
-        - Industry-standard reporting
-        - Cloud-based processing
-        """)
+    st.info("📤 Please upload shoe images to begin quality inspection.")
 
 # Footer
 st.markdown("---")
@@ -1250,4 +1249,3 @@ st.markdown("""
     <em>AI Footwear Quality Control Inspector - Transforming Manufacturing QC with Computer Vision</em>
 </div>
 """, unsafe_allow_html=True)
-
