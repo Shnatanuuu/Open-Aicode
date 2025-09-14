@@ -25,7 +25,7 @@ st.markdown("*Powered by OpenAI GPT-4 Vision API*")
 @st.cache_resource
 def initialize_openai_client():
     """Initialize OpenAI client with API key from environment variables"""
-    api_key = os.getenv('OPENAI_API_KEY')
+    api_key = st.secrets["OPENAI_API_KEY"]
     if not api_key:
         st.error("❌ OPENAI_API_KEY not found in environment variables!")
         st.markdown("""
