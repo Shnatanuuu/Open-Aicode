@@ -945,18 +945,7 @@ with st.sidebar:
     st.header("🔧 Configuration")
     st.markdown("**OpenAI Model:** GPT-4 Vision (gpt-4o)")
     
-    # Show API key status
-    if os.getenv('OPENAI_API_KEY'):
-        st.success("✅ API Key loaded from environment!")
-        st.info("💡 Cost: ~$0.01-0.03 per image analysis")
-    else:
-        st.error("❌ API Key not found!")
-        st.markdown("""
-        **Setup Required:**
-        1. Create `.env` file in project directory
-        2. Add: `OPENAI_API_KEY=your_api_key_here`
-        3. Restart the application
-        """)
+
 
 # Main interface
 # Order Information Section
@@ -1249,3 +1238,4 @@ st.markdown("""
     <em>AI Footwear Quality Control Inspector - Transforming Manufacturing QC with Computer Vision</em>
 </div>
 """, unsafe_allow_html=True)
+
